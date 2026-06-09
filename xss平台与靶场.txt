@@ -13,10 +13,8 @@ https://zgjx6.github.io/2017/09/20/XSS%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/
 http://www.2cto.com/article/201310/251830.html
 XSS与字符编码的那些事儿：http://www.2cto.com/article/201310/251830.html
 深入理解浏览器解析机制和XSS向量编码：http://bobao.360.cn/learning/detail/292.html
-xssnow：
-http://xssnow.com
-xsstv
-：http://xss.tv
+xssnow：http://xssnow.com
+xsstv：http://xss.tv
 
 https://github.com/do0dl3/xss-labs
 https://github.com/digininja/DVWA
