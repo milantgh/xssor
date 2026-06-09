@@ -1,0 +1,117 @@
+1、postMessage
+
+// a.com 的页面，未校验 origin，直接处理消息
+window.addEventListener('message', function(event) {
+  // 危险：无 origin 校验，任意源的消息都处理
+  eval(event.data); // 直接执行接收的消息，高危！
+});
+
+<!-- a.com 的页面 -->
+<iframe src="https://attacker.com" id="iframe"></iframe>
+<script>
+  // 未校验 origin，处理 iframe 发来的消息
+  window.addEventListener('message', function(event) {
+    document.getElementById('content').innerHTML = event.data; // 插入到页面，导致 XSS
+  });
+</script>
+
+
+2、location.hash
+3、innerHTML
+4、eval
+5、window.open(alert())
+5.1、self.localtion.href=alert(1)
+6.0、addEventListener
+6.1、jQuery 中的 DOM XSS 漏洞
+
+例如，jQuery 的 attr() 函数可以修改 DOM 元素的属性。如果代码从 URL 这类用户可控的数据源读取数据，并将其传递给 attr() 函数，攻击者就有可能通过篡改传入的值来触发 XSS 漏洞。举例来说，以下代码通过 URL 中的数据修改锚点元素的 href 属性：
+
+$(function() {
+    $('#backLink').attr("href",(new URLSearchParams(window.location.search)).get('returnUrl'));
+});
+
+攻击者可以通过构造恶意 URL 来利用这个漏洞。在 URL 的 location.search 部分植入恶意的 JavaScript 链接，当页面的 JavaScript 代码将这个恶意 URL 赋值给返回链接的 href 属性后，用户点击该链接就会执行恶意代码：?returnUrl=javascript:alert(document.domain)
+
+7、$() 选择器函数漏洞
+
+另一个需要重点关注的数据接收端是 jQuery 的 $() 选择器函数，攻击者可以通过它向 DOM 中注入恶意对象。jQuery 曾经的使用范围极广，一个典型的 DOM XSS 漏洞场景是：网站结合 location.hash 数据源和 $() 选择器函数，实现页面动画或自动滚动到指定元素的功能。这类功能通常会通过存在漏洞的 hashchange 事件处理器来实现，示例代码如下：
+
+$(window).on('hashchange', function() {
+    var element = $(location.hash);
+    element[0].scrollIntoView();
+});
+
+由于 URL 的哈希值可以被用户随意控制，攻击者可以在其中植入 XSS 攻击向量，注入到 $() 选择器这个数据接收端中。不过，jQuery 的较新版本已经修复了这个漏洞：当输入内容以哈希字符（#）开头时，会阻止向选择器中注入 HTML 代码。但在实际环境中，你仍有可能发现使用了存在该漏洞的老旧代码的网站。要成功利用这个经典漏洞，你需要找到一种无需用户交互就能触发 hashchange 事件的方法。最简单的方法之一是通过 iframe 来传递攻击载荷：
+
+<iframe src="https://vulnerable-website.com#" onload="this.src+='<img src=1 onerror=alert(1)>'">
+
+在这个例子中，iframe 的 src 属性指向存在漏洞的页面，且哈希值为空。当 iframe 加载完成后，攻击代码会被追加到哈希值中，从而触发 hashchange 事件，执行跨站脚本攻击。补充说明：即使是更新版本的 jQuery，依然存在通过 $() 选择器接收端触发漏洞的可能性，前提是你能够完全控制输入内容，且对应的数据源不需要以 # 作为前缀。
+
+8、AngularJS 中的 DOM XSS 漏洞
+
+如果网站使用了 AngularJS 这类框架，攻击者有可能在不需要使用尖括号或事件处理器的情况下执行 JavaScript 代码。当网站在 HTML 元素上使用 ng-app 属性时，该元素会被 AngularJS 处理。在这种情况下，AngularJS 会执行双花括号 {{}} 内的 JavaScript 代码，这些代码可以直接写在 HTML 中，也可以写在元素的属性里。
+
+9、结合反射型数据与存储型数据的 DOM XSS 漏洞
+
+有些纯 DOM 型漏洞完全存在于单个页面中。如果页面中的脚本从 URL 读取数据，并将其写入危险的数据接收端，那么这个漏洞就是完全的客户端漏洞。但数据源并不仅限于浏览器直接暴露的数据，也可以来自网站服务器本身。
+
+10、反射型 DOM XSS 漏洞
+
+例如，很多网站会将 URL 参数的值反射到服务器返回的 HTML 响应中。这种行为通常与普通的 XSS 漏洞相关，但也可能引发反射型 DOM XSS 漏洞。在反射型 DOM XSS 漏洞场景中，服务器会处理请求中的数据，并将其回显到响应内容里。被反射的数据可能会被插入到 JavaScript 字符串字面量中，或者被写入 DOM 的某个数据项中，比如表单字段。之后，页面中的脚本会以不安全的方式处理这些反射数据，最终将其写入危险的数据接收端。
+
+eval('var data = "reflected string"');
+
+11、存储型 DOM XSS 漏洞
+
+网站还可能将数据存储在服务器上，并在其他地方进行回显，这就会引发存储型 DOM XSS 漏洞。在这种漏洞场景中，服务器会接收某个请求中的数据并存储起来，之后在另一个响应中包含这些数据。承载这些数据的响应中，会包含一个脚本，该脚本会通过某个数据接收端，以不安全的方式处理这些存储的数据。
+
+element.innerHTML = comment.author
+
+12、哪些数据接收端可能引发 DOM XSS 漏洞？
+
+（一）原生 JavaScript 接收端
+
+以下是一些可能引发基于 DOM 的跨站脚本漏洞的常见原生 JavaScript 接收端：
+
+    document.write()
+    document.writeln()
+    document.domain
+    element.innerHTML
+    element.outerHTML
+    element.insertAdjacentHTML
+    element.onevent
+
+（二）jQuery 函数接收端
+
+此外，jQuery 中的以下函数也属于可能引发 DOM XSS 漏洞的数据接收端：
+
+    add()
+    after()
+    append()
+    animate()
+    insertAfter()
+    insertBefore()
+    before()
+    html()
+    prepend()
+    replaceAll()
+    replaceWith()
+    wrap()
+    wrapInner()
+    wrapAll()
+    has()
+    constructor()
+    init()
+    index()
+    jQuery.parseHTML()
+    $.parseHTML()
+
+13、如何防范 DOM XSS 漏洞？
+
+除了遵循基于 DOM 的漏洞防护页面中介绍的通用防护措施外，你还应该避免将来自任何不可信数据源的数据动态写入 HTML 文档中。
+
+14、AI辅助JavaScript代码审计
+
+=========================================================================================
+
+参考：https://portswigger.net/web-security/cross-site-scripting/dom-based

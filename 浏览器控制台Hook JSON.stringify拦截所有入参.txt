@@ -1,0 +1,100 @@
+浏览器控制台 Hook JSON.stringify 拦截所有入参
+
+const originalStringify = JSON.stringify;
+JSON.stringify = function (...args) {
+    debugger; // 自动断点
+    console.log("参数：", args);
+    return originalStringify.apply(this, args);
+};
+
+=================================================
+
+一、基础版（仅打印参数、返回值）
+
+// 保存原始方法
+const originalStringify = JSON.stringify;
+
+// 重写 Hook
+JSON.stringify = function (...args) {
+    console.log("===== JSON.stringify 被调用 =====");
+    console.log("入参列表：", args);
+    
+    // 执行原生方法
+    const result = originalStringify.apply(this, args);
+    
+    console.log("返回结果：", result);
+    console.log("================================\n");
+    return result;
+};
+
+二、增强版（附带调用栈、精准拦截、可修改参数）
+
+适合排查是谁调用、篡改参数/返回值场景：
+
+const originalStringify = JSON.stringify;
+
+JSON.stringify = function (...args) {
+    console.group("?? Hook JSON.stringify");
+    console.log("原始入参：", JSON.parse(JSON.stringify(args)));
+    
+    // 打印调用栈，定位代码位置
+    console.trace("调用栈：");
+
+    // ========== 在这里可以修改参数 ==========
+    // 示例：修改第一个序列化对象
+    // args[0].test = "hooked";
+    // =======================================
+
+    const res = originalStringify.apply(this, args);
+    console.log("序列化结果：", res);
+    console.groupEnd();
+
+    return res;
+};
+
+三、进阶：只拦截指定内容/阻止序列化
+
+1.匹配特定关键词才打印
+
+const originalStringify = JSON.stringify;
+JSON.stringify = function (...args) {
+    const value = args[0];
+    // 包含指定字段才拦截
+    if (value && (value.token || value.password || value.uid)) {
+        console.log("?? 捕获敏感数据序列化：", args);
+        console.trace();
+    }
+    return originalStringify.apply(this, args);
+};
+
+2.直接篡改返回值
+
+const originalStringify = JSON.stringify;
+JSON.stringify = function (...args) {
+    let res = originalStringify.apply(this, args);
+    // 替换返回内容
+    res = res.replace(/123456/g, "******");
+    return res;
+};
+
+四、解除 Hook（恢复原生方法）
+
+如需还原浏览器默认行为，执行：
+
+JSON.stringify = originalStringify;
+
+注意：变量 originalStringify 必须和 Hook 代码在同一个控制台上下文，刷新页面也会自动恢复原生。
+
+五、使用场景与注意事项
+
+使用方式：F12 → Console 面板 → 粘贴代码回车，页面后续所有 JSON.stringify 都会被拦截。
+跨页面失效：刷新页面、跳转页面后 Hook 会消失，需要重新执行。
+无限递归提醒：不要在 Hook 内部再直接调用 JSON.stringify(args)，会死循环，要用提前保存的原始方法。
+配合 debugger; 断点：在代码里加 debugger; 可自动断在调用处，逐行调试：
+
+const originalStringify = JSON.stringify;
+JSON.stringify = function (...args) {
+    debugger; // 自动断点
+    console.log("参数：", args);
+    return originalStringify.apply(this, args);
+};

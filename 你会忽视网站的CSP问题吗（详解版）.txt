@@ -1,0 +1,244 @@
+结论：CSP是后端通过 HTTP 响应头（Response Header） 下发给浏览器的安全规则，前端只是被动执行；99%的CSP 漏洞，根源都是后端为了快速兼容业务，在响应头里写了危险配置，把浏览器的安全防线直接废掉了。
+
+我们可以把CSP安全总结为6大漏洞，对应前后端代码、HTTP响应数据、修复方案，详细讲解，让大家能直接对照自己项目定位问题。
+
+前置基础：CSP 到底在哪里生效？（核心位置）
+
+CSP只有两个生效位置，全由后端控制：
+
+HTTP响应头（最常用）：后端代码设置 Content-Security-Policy 响应头
+HTML meta 标签：前端页面写 <meta> 标签（不推荐，功能受限）
+浏览器加载页面时，先读取后端返回的CSP规则，再按照规则拦截/放行资源。
+HTTP响应头CSP优先级 > HTML meta标签CSP，二者同时存在时会叠加生效、互相限制，并非简单覆盖。
+核心规则，如下：
+不是谁覆盖谁，而是策略合并、取最严格规则。
+同一指令两边都配置，浏览器会叠加限制：必须同时满足两边规则，资源才会放行。
+例如：GTTP响应头 script-src 'self'，meta标签 script-src 'unsafe-inline' → 最终效果：只允许自身脚本，内联脚本依然被拦截（以更严格的为准）。
+补充限制（meta 标签天生短板）
+meta版CSP不支持这些指令：
+frame-ancestors（防页面被嵌套劫持）
+report-uri/report-to（CSP 日志上报）
+这类指令只能靠后端HTTP响应头配置。
+案例说明，如下：
+场景1：响应头 + meta 同时存在
+后端响应头（严格）
+Content-Security-Policy: script-src 'self'; object-src 'none';
+页面meta标签（宽松）
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline'; img-src data:;">
+最终生效规则：
+script-src：合并后取严格值 → 仅允许 'self'，unsafe-inline 失效
+object-src：仅响应头配置 → 'none'（禁用插件）
+img-src：仅 meta 配置 → 允许 data:
+场景2：只写meta，无HTTP响应头
+完全由 meta 规则控制，但缺失 frame-ancestors 等能力，生产环境不推荐。
+场景3：只写HTTP响应头（标准最佳实践）
+企业项目、等保/安全合规首选方案，规则完整、优先级最高、可控性最强。
+落地建议：
+统一收口：全部改用后端 HTTP 响应头下发 CSP，删掉页面里所有 meta 形式的 CSP，避免规则冲突、排查混乱。
+若历史项目暂时无法删除 meta：
+以响应头作为安全基线（严格配置，禁止 unsafe-inline/*/data: 进脚本域）；
+不要在 meta 中添加任何危险放行项，防止叠加后引入漏洞。
+排查技巧：
+抓包看响应头 + 查看页面源码 meta 标签，两处都要检查，很多漏洞是两处叠加放宽规则导致。
+如何配置后端响应头CSP？
+如何配置HTML meta标签CSP？
+除了优先级和生效规则，还有哪些需要注意的地方？
+
+正常流程（安全）
+
+后端响应头 → 下发严格CSP → 浏览器只执行可信JS → 拦截恶意XSS
+
+漏洞流程（危险）
+
+后端响应头 → 下发宽松CSP（unsafe-inline/*/data:）→ 浏览器放行所有代码 → XSS 随便攻击
+
+漏洞1：允许内联脚本 'unsafe-inline'（最高危）
+
+1.漏洞本质
+
+后端在 CSP 头里加了 'unsafe-inline'，让浏览器执行所有内联 JS（HTML 里的 <script>、onclick 等）。
+
+2.后端错误代码（以Java/Node.js为例）
+
+Java (SpringBoot)
+
+// 错误：加了 unsafe-inline，废掉CSP
+response.setHeader("Content-Security-Policy", 
+  "default-src 'self'; script-src 'self' 'unsafe-inline';");
+
+Node.js (Express)
+
+// 错误
+app.use((req, res, next) => {
+  res.setHeader("Content-Security-Policy", 
+    "default-src 'self'; script-src 'self' 'unsafe-inline';");
+  next();
+});
+
+3.浏览器收到的错误响应头（抓包可看）
+
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline';
+
+4.前端被允许的危险代码（黑客可注入）
+
+<!-- 黑客注入的恶意内联脚本，浏览器直接执行 -->
+<div onclick="alert('盗号')">点击</div>
+<script>alert('XSS攻击')</script>
+
+5.修复方案
+
+后端：删除 'unsafe-inline'
+前端：把内联 JS 挪到外部 .js 文件
+
+修复后的后端代码
+
+// 正确：脚本只允许自身服务器，无内联
+response.setHeader("Content-Security-Policy", 
+  "default-src 'self'; script-src 'self';");
+
+漏洞2：允许危险协议 data:/blob:（高危）
+
+1.漏洞本质
+
+后端在 script-src 里加了 data: blob:，允许执行URL编码的恶意JS。
+
+2.后端错误代码
+
+// 错误：给脚本开放 data: blob:
+response.setHeader("Content-Security-Policy", 
+  "script-src 'self' data: blob:;");
+
+3.错误响应头
+
+Content-Security-Policy: script-src 'self' data: blob:;
+
+4.黑客可利用的攻击代码
+
+<!-- 浏览器直接执行 base64 恶意代码 -->
+<script src="data:text/javascript;base64,YWxlcnQoJ1hTUycp"></script>
+
+5.修复方案
+
+script-src 绝对删除 data: blob:
+仅给图片 img-src 放行 data:
+
+修复后的后端代码
+
+response.setHeader("Content-Security-Policy", 
+  "script-src 'self'; img-src 'self' data:;"); // 仅图片允许data:
+
+漏洞3：滥用通配符 *（高危）
+
+1.漏洞本质
+
+后端用 * 代表允许任何网站的资源，白名单完全失效。
+
+2.后端错误代码
+
+// 错误：* = 允许全世界所有脚本
+response.setHeader("Content-Security-Policy", 
+  "script-src *;");
+
+3.错误响应头
+
+Content-Security-Policy: script-src *;
+
+4.风险后果
+
+黑客可以引入任意恶意网站JS：<script src="https://hacker.com/steal.js"></script>
+
+5.修复方案（修复后的后端代码）
+
+替换 * 为可信域名
+
+// 正确：只允许自身 + 阿里云CDN
+response.setHeader("Content-Security-Policy", 
+  "script-src 'self' https://cdn.aliyun.com;");
+
+漏洞4：object-src 未禁用（高危）
+
+1.漏洞本质
+
+未限制 object-src，允许Flash/插件执行恶意代码。
+
+2.后端错误代码
+
+// 错误：全放行
+response.setHeader("Content-Security-Policy", 
+  "object-src * data:;");
+
+3.修复方案（99%的项目通用）
+
+直接禁用所有插件（修复后的后端代码）
+
+response.setHeader("Content-Security-Policy", 
+  "object-src 'none';"); // 彻底堵死插件漏洞
+
+漏洞5：允许动态执行 'unsafe-eval'（中危）
+
+1.漏洞本质
+
+后端加了 'unsafe-eval'，允许 eval()/new Function()动态执行代码。
+
+2.后端错误代码
+
+// 错误：开放eval
+response.setHeader("Content-Security-Policy", 
+  "script-src 'self' 'unsafe-eval';");
+
+3.前端危险代码
+
+// 黑客可变形恶意代码
+eval("alert('XSS')");
+
+4.修复方案
+
+后端删除 'unsafe-eval'
+前端用静态代码替代（JSON.parse 代替 eval）
+
+漏洞6：未开启可信类型（低危）
+
+1.漏洞本质
+
+没开启进阶防护，无法防御 DOM XSS。
+
+2.修复代码（可选，适配后加）
+
+response.setHeader("Content-Security-Policy", 
+  "require-trusted-types-for 'script'; trusted-types default;");
+
+可直接使用的【安全CSP完整配置】，后端最终代码（Java版，所有的项目通用），如下：
+
+response.setHeader("Content-Security-Policy", 
+    "default-src 'self'; " +
+    "script-src 'self'; " +  // 核心：无任何危险配置
+    "style-src 'self' 'unsafe-inline'; " +  // 样式可保留内联
+    "img-src 'self' data:; " +  // 仅图片放行data:
+    "font-src 'self'; " +
+    "connect-src 'self'; " +
+    "media-src 'self'; " +
+    "object-src 'none'; " +  // 禁用插件
+    "base-uri 'self'; " +
+    "form-action 'self'; " +
+    "frame-src 'self'; " +
+    "worker-src 'self'; " +
+    "child-src 'self';"
+);
+
+浏览器收到的安全响应头，如下：
+
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; media-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self'; worker-src 'self'; child-src 'self';
+
+总结
+
+CSP是后端写在HTTP响应头里的规则，前端只负责执行；
+我们遇到的所有CSP漏洞，都是后端为了省事，加了 unsafe-inline、*、data: 这些危险配置；
+漏洞修复只需要做一件事：后端把响应头里的危险配置全部删掉，换成严格白名单。
+按照以下这个规则，我们直接去扫描项目里的Content-Security-Policy代码，10分钟就能修复所有高危漏洞。
+
+安全扫描告警			对应后端响应头错误						修复方式
+允许内联脚本			script-src ... 'unsafe-inline'		删除 'unsafe-inline'
+允许data/blob协议		script-src ... data: blob:			脚本中删除，仅图片放行
+滥用通配符			script-src *						替换为可信域名
+对象源未限制			object-src *						改为 object-src 'none'
+允许eval				script-src ... 'unsafe-eval'		删除该配置

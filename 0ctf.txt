@@ -1,0 +1,14 @@
+bypassing modern Content Security Policies (CSP)
+================================================
+https://meizjm3i.github.io/2018/05/12/Use%20Wave%20File%20Bypass%20CSP/
+https://www.intigriti.com/researchers/blog/hacking-tools/0326-ctf-challenge-exploiting-dom-clobbering-csp-xss
+https://ultramangaia.github.io/blog/2018/Web%E5%AE%89%E5%85%A8%E4%B9%8BXSSI%E6%BC%8F%E6%B4%9E.html
+https://www.slideshare.net/slideshow/jsmvcomfg-to-sternly-look-at-javascript-mvc-and-templating-frameworks/29158265#3
+http://www.1o1o.xyz:8080/CSDN/ctf%20xss%E5%88%A9%E7%94%A8_TCTF-0CTF2018%20XSS%20Writeup_%E9%82%BB%E5%AE%B6%E4%BA%8C%E5%93%A5%E7%9A%84%E5%8D%9A%E5%AE%A2.pdf
+https://gist.github.com/masatokinugawa/b55a890c4b051cc6575b010e8c835803
+https://blog.csdn.net/weixin_29923451/article/details/112950728
+https://cloud.tencent.com/developer/article/2220736
+https://lorexxar.cn/2018/04/17/0ctf2018-space/
+https://lorexxar.cn/2018/04/10/0ctf2018-club2/
+https://github.com/l4wio/CTF-challenges-by-me/tree/master/0ctf_quals-2018/h4x0rs.club
+https://cloud.tencent.cn/developer/article/1103748

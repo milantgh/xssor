@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<!-- saved from url=(0046)https://www.cnblogs.com/b1gstar/p/5996549.html -->
+<html lang="zh-cn" style="--olcb-folder-code-block-max-height:80vh; --cnb-code-bg:rgb(245, 245, 245); --cnb-code-font-size:12px; --cnb-code-color:rgb(68, 68, 68);"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">            
+    <meta http-equiv="Cache-Control" content="no-transform">
+    <meta http-equiv="Cache-Control" content="no-siteapp">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="referrer" content="never">
+    <title>（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园</title>
+    <meta name="keywords" content="xss 高级">
+    <meta name="description" content="（译者注：由于某些词汇翻译成中文后很生硬，因此把相应的英文标注在其后以便理解。这篇文章讲的内容很基础，同时也很重要，希望对大家有所帮助。） 这篇文章将要深入理解HTML、URL和JavaScript的规范细则和解析器，以及在解析一段XSS脚本时他们之间有着怎样的差别。这些内容对读者的难易程度取决于读">    
+    <meta property="og:description" content="（译者注：由于某些词汇翻译成中文后很生硬，因此把相应的英文标注在其后以便理解。这篇文章讲的内容很基础，同时也很重要，希望对大家有所帮助。） 这篇文章将要深入理解HTML、URL和JavaScript的规范细则和解析器，以及在解析一段XSS脚本时他们之间有着怎样的差别。这些内容对读者的难易程度取决于读">
+    <meta property="og:image" content="https://assets.cnblogs.com/images/wechat-share.jpg">    
+    
+    <style>#home :not(.cnblogs_code):not(.cnblogs_Highlighter)>pre:not([highlighted]):not([class*="brush:"]) code:not(.hljs), :not(.cnblogs_code):not(.cnblogs_Highlighter)>pre:not([highlighted]):not([class*="brush:"]) code:not(.hljs) {background: rgb(245, 245, 245);
+        padding: 12px;
+        border: 1px solid rgb(204, 204, 204);
+        border-radius: 3px;
+        border-color: transparent;
+        color: rgb(68, 68, 68);
+        font-family: "Courier New", sans-serif;
+        font-size: 12px</style><link rel="stylesheet" href="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/blog-common.min.css">
+    
+
+    <link id="MainCss" rel="stylesheet" href="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/bundle-blacklowkey.min.css">
+        <link id="highlighter-theme-cnblogs" type="text/css" rel="stylesheet" href="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/cnblogs.css">
+    
+    
+    <link id="mobile-style" media="only screen and (max-width: 767px)" type="text/css" rel="stylesheet" href="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/bundle-blacklowkey-mobile.min.css">
+    
+    <link id="favicon" rel="icon" type="image/x-icon" sizes="32x32" href="https://assets.cnblogs.com/favicon_v3_3.ico">
+    <link id="favicon_svg" rel="icon" type="image/svg+xml" href="https://assets.cnblogs.com/favicon_v3_3.svg">
+    <link rel="apple-touch-icon" href="https://assets.cnblogs.com/apple-touch-icon.png?v=2">
+    <link rel="canonical" href="https://www.cnblogs.com/b1gstar/p/5996549.html">
+    <link type="application/rss+xml" rel="alternate" href="https://www.cnblogs.com/b1gstar/rss">
+    <link type="application/rsd+xml" rel="EditURI" href="https://www.cnblogs.com/b1gstar/rsd.xml">
+    <link type="application/wlwmanifest+xml" rel="wlwmanifest" href="https://www.cnblogs.com/b1gstar/wlwmanifest.xml">
+    
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "@id": "https://www.cnblogs.com/b1gstar/p/5996549.html",
+      "headline": "（转自360安全客）深入理解浏览器解析机制和XSS向量编码",
+      "description": "（译者注：由于某些词汇翻译成中文后很生硬，因此把相应的英文标注在其后以便理解。这篇文章讲的内容很基础，同时也很重要，希望对大家有所帮助。） 这篇文章将要深入理解HTML、URL和JavaScript的规范细则和解析器，以及在解析一段XSS脚本时他们之间有着怎样的差别。这些内容对读者的难易程度取决于读",
+      "image": [
+        
+      ],
+      "author": {
+        "@type": "Person",
+        "@id": "https://www.cnblogs.com/b1gstar/",
+        "name": "B1gstar",
+        "url": "https://www.cnblogs.com/b1gstar/"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "@id": "https://www.cnblogs.com/",
+        "name": "博客园",
+        "url": "https://www.cnblogs.com/"
+      },
+      "datePublished": "2016-10-25T14:19:00.0000000&#x2B;08:00",
+      "dateModified": "2016-10-25T14:19:00.0000000&#x2B;08:00",
+      "wordCount": "20378",
+      "isPartOf": {
+        "@type": "Blog",
+        "@id": "https://www.cnblogs.com/b1gstar/",
+        "name": "\u003ciMg/src=~ Onerr0r--&amp;gt;B1gstar",
+        "publisher": {
+          "@type": "Organization",
+          "@id": "https://www.cnblogs.com/",
+          "name": "博客园"
+        }
+      }
+    }
+    </script>
+
+    <script>
+        var currentBlogId = 293954;
+        var currentBlogApp = 'b1gstar';
+        var isLogined = false;
+        var isBlogOwner = false;
+        window.isCorp = false;
+        window.skinName = 'BlackLowKey';
+        var visitorUserId = '';
+        window.hasCustomScript = false;
+        window.cb_enable_mathjax = false;
+        window.mathEngine = 0;
+        window.codeHighlightEngine = 1;
+        window.enableCodeLineNumber = false;
+        window.codeHighlightTheme = 'cnblogs';
+        window.darkModeCodeHighlightTheme = 'vs2015';
+        window.isDarkCodeHighlightTheme = false;
+        window.isDarkModeCodeHighlightThemeDark = true;
+        window.isDisableCodeHighlighter = false;
+        window.enableCodeThemeTypeFollowSystem = false;
+        window.enableMacStyleCodeBlock = false;        
+    </script>
+        <script>
+            window.currentPostId = 5996549;
+            window.currentPostDateAdded = '2016-10-25 14:19';
+        </script>
+    <script src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/jquery-3.3.1.min.js.下载"></script>
+    <script src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/blog-common.min.js.下载"></script><style>.medium-zoom-overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  opacity: 0;
+  transition: opacity 300ms;
+  will-change: opacity;
+}
+
+.medium-zoom--opened .medium-zoom-overlay {
+  cursor: pointer;
+  cursor: zoom-out;
+  opacity: 1;
+}
+
+.medium-zoom-image {
+  cursor: pointer;
+  cursor: zoom-in;
+  /*
+    The `transition` is marked as "!important" for the animation to happen
+    even though it's overriden by another inline `transition` style attribute.
+
+    This is problematic with frameworks that generate inline styles on their
+    images (e.g. Gatsby).
+
+    See https://github.com/francoischalifour/medium-zoom/issues/110
+   */
+  transition: transform 300ms cubic-bezier(0.2, 0, 0.2, 1) !important;
+}
+
+.medium-zoom-image--hidden {
+  visibility: hidden;
+}
+
+.medium-zoom-image--opened {
+  position: relative;
+  cursor: pointer;
+  cursor: zoom-out;
+  will-change: transform;
+}
+</style><script id="hljs-script" src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/highlight.min.js.下载" type="text/javascript" async=""></script>
+    
+</head>
+<body class="skin-blacklowkey has-navbar">
+    <a name="top"></a>
+    <div id="top_nav" class="navbar forpc">
+        <nav id="nav_main" class="navbar-main">
+            <ul id="nav_left" class="navbar-list navbar-left">
+                <li class="navbar-branding">
+                    <a href="https://www.cnblogs.com/" title="开发者的网上家园" role="banner">
+                        <img src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/logo.svg" alt="博客园logo">
+                    </a>
+                </li>
+                <li><a href="https://cnblogs.vip/">会员</a></li>
+                <li><a href="https://cnblogs.vip/store">周边</a></li>
+                <li><a href="https://news.cnblogs.com/" onclick="countClicks(&#39;nav&#39;, &#39;skin-navbar-news&#39;)">新闻</a></li>
+                <li><a href="https://q.cnblogs.com/" onclick="countClicks(&#39;nav&#39;, &#39;skin-navbar-q&#39;)">博问</a></li>
+                <li><a href="https://ing.cnblogs.com/" onclick="countClicks(&#39;nav&#39;, &#39;skin-navbar-ing&#39;)">闪存</a></li>                
+                <li><a href="https://www.cnblogs.com/cmt/p/19316348">赞助商</a></li>
+                <li><a href="https://chat2db-ai.com/" target="_blank">Chat2DB</a></li>
+            </ul>
+            <ul id="nav_right" class="navbar-list navbar-right">
+                <li>
+                    <form id="zzk_search" class="navbar-search dropdown" action="https://zzk.cnblogs.com/s" method="get" role="search">
+                        <input name="w" id="zzk_search_input" placeholder="代码改变世界" type="search" tabindex="3" autocomplete="off">
+                        <button id="zzk_search_button" onclick="window.navbarSearchManager.triggerActiveOption()">
+                            <img id="search_icon" class="focus-hidden" src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/search.svg" alt="搜索">
+                            <img class="hidden focus-visible" src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/enter.svg" alt="搜索">
+                        </button>
+                        <ul id="navbar_search_options" class="dropdown-menu quick-search-menu">
+                            <li tabindex="0" class="active" onclick="zzkSearch(event, document.getElementById(&#39;zzk_search_input&#39;).value)">
+                                <div class="keyword-wrapper">
+                                    <img src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/search.svg" alt="搜索">
+                                    <div class="keyword"></div>
+                                </div>
+                                <span class="search-area">所有博客</span>
+                            </li>
+                                    <li tabindex="1" onclick="zzkBlogSearch(event, &#39;b1gstar&#39;, document.getElementById(&#39;zzk_search_input&#39;).value)">
+                                        <div class="keyword-wrapper">
+                                            <img src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/search.svg" alt="搜索">
+                                            <div class="keyword"></div>
+                                        </div>
+                                        <span class="search-area">当前博客</span>
+                                    </li>
+                        </ul>
+                    </form>
+                </li>
+                <li id="navbar_login_status" class="navbar-list">
+                    <a class="navbar-user-info navbar-blog" href="https://i.cnblogs.com/EditPosts.aspx?opt=1" alt="写随笔" title="写随笔" style="display: none;">
+                        <img id="new_post_icon" class="navbar-icon" src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/newpost.svg" alt="写随笔">
+                    </a>
+                    <a id="navblog-myblog-icon" class="navbar-user-info navbar-blog" href="https://www.cnblogs.com/my" alt="我的博客" title="我的博客" style="display: none;">
+                        <img id="myblog_icon" class="navbar-icon" src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/myblog.svg" alt="我的博客">
+                    </a>
+                    <a class="navbar-user-info navbar-message navbar-icon-wrapper" href="https://msg.cnblogs.com/" alt="短消息" title="短消息" style="display: none;">
+                        <img id="msg_icon" class="navbar-icon" src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/message.svg" alt="短消息">
+                        <span id="msg_count" style="display: none"></span>
+                    </a>
+                    <a id="navbar_lite_mode_indicator" data-current-page="blog" style="display: none" href="javascript:void(0)" alt="简洁模式" title="简洁模式启用，您在访问他人博客时会使用简洁款皮肤展示">
+                        <img class="navbar-icon" src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/lite-mode-on.svg" alt="简洁模式">
+                    </a>
+                    <div id="user_info" class="navbar-user-info dropdown" style="display: none;">
+                        <a class="dropdown-button" href="https://home.cnblogs.com/">
+                            <img id="user_icon" class="navbar-avatar" src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/avatar-default.svg" alt="用户头像">
+                        </a>
+                        <div class="dropdown-menu">
+                            <a id="navblog-myblog-text" href="https://www.cnblogs.com/my">我的博客</a>
+                            <a href="https://home.cnblogs.com/">我的园子</a>
+                            <a href="https://account.cnblogs.com/settings/account">账号设置</a>
+                            <a href="https://vip.cnblogs.com/my">会员中心</a>
+                            <a href="javascript:void(0)" id="navbar_lite_mode_toggle" title="简洁模式会使用简洁款皮肤显示所有博客">
+    简洁模式 <span id="navbar_lite_mode_spinner" class="hide">...</span>
+</a>
+
+                            <a href="javascript:void(0)" onclick="account.logout();">退出登录</a>
+                        </div>
+                    </div>
+                    <a class="navbar-anonymous" href="https://account.cnblogs.com/signup" style="display: inline;">注册</a>
+                    <a class="navbar-anonymous" href="javascript:void(0);" onclick="account.login()" style="display: inline;">登录</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+
+    
+
+    <div id="home">
+<div id="header">
+	<div id="blogTitle">
+        <a id="lnkBlogLogo" href="https://www.cnblogs.com/b1gstar/"><img id="blogLogo" src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/logo.gif" alt="返回主页"></a>		
+		
+
+<h1><a id="Header1_HeaderTitle" class="headermaintitle HeaderMainTitle" href="https://www.cnblogs.com/b1gstar">\u003ciMg/src=~ Onerr0r--&gt;B1gstar</a>
+</h1>
+<h2>Master the art of Cross Site Scripting.</h2>
+
+
+
+
+		
+	</div>
+	<div id="navigator">
+		
+<ul id="navList">
+<li>
+</li>
+<li>
+<a id="blog_nav_myhome" class="menu" href="https://www.cnblogs.com/b1gstar/">
+首页</a>
+</li>
+<li>
+
+<a id="blog_nav_newpost" class="menu" href="https://i.cnblogs.com/EditPosts.aspx?opt=1">
+新随笔</a>
+</li>
+<li>
+</li>
+<li>
+<a id="blog_nav_rss" class="menu" href="javascript:void(0)" data-rss="https://www.cnblogs.com/b1gstar/rss/">
+订阅</a>
+<!--<partial name="./Shared/_XmlLink.cshtml" model="Model" /></li>--></li>
+<li>
+<a id="blog_nav_admin" class="menu" href="https://i.cnblogs.com/">
+管理</a>
+</li>
+</ul>
+
+
+		<div class="blogStats">
+			<span id="stats_post_count">随笔 - 32&nbsp; </span>
+<span id="stats_article_count">文章 - 0&nbsp; </span>
+<span id="stats-comment_count">评论 - 23&nbsp; </span>
+<span id="stats-total-view-count">阅读 - 
+<span title="总阅读数: 45063">
+45063</span></span>
+
+		</div>
+	</div>
+</div>
+<div id="main">
+	<div id="mainContent">
+	<div class="forFlow">
+		<div id="post_detail">
+    
+    <div id="topics">
+        <div class="post">
+            <h1 class="postTitle">
+                <a id="cb_post_title_url" class="postTitle2 vertical-middle" href="https://www.cnblogs.com/b1gstar/p/5996549.html" title="发布于 2016-10-25 14:19">
+    <span role="heading" aria-level="2">（转自360安全客）深入理解浏览器解析机制和XSS向量编码</span>
+    
+
+</a>
+
+            </h1>
+            <div class="clear"></div>
+            <div class="postBody">
+                <div id="cnblogs_post_body" class="blogpost-body blogpost-body-html">
+<p><a href="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/t016970dc4a311767d1.jpg" target="_blank" rel="noopener nofollow"><img title="t016970dc4a311767d1.jpg" alt="http://p3.qhimg.com/t016970dc4a311767d1.jpg" data-src="http://p3.qhimg.com/t016970dc4a311767d1.jpg" class=" ls-is-cached lazyloaded" src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/t016970dc4a311767d1.jpg"></a></p>
+<p>（译者注：由于某些词汇翻译成中文后很生硬，因此把相应的英文标注在其后以便理解。这篇文章讲的内容很基础，同时也很重要，希望对大家有所帮助。）</p>
+<p>这篇文章将要深入理解HTML、URL和JavaScript的规范细则和解析器，以及在解析一段XSS脚本时他们之间有着怎样的差别。这些内容对读者的难易程度取决于读者对HTML规范和浏览器解析的知识是否充足。当然，我向您保证这篇文章比较长，因此请准备一小时或两小时来从中获益。在主题开始之前，请花费一点时间来看看下列语句并尝试回答：这些脚本能够正确执行吗？</p>
+<p>基础部分</p>
+<div class="table-wrapper"><table class="syntaxhighlighter  html" border="0" cellspacing="0" cellpadding="0">
+<tbody>
+<tr>
+<td class="gutter">
+<div class="line number1 index0 alt2">1</div>
+<div class="line number2 index1 alt1">2</div>
+<div class="line number3 index2 alt2">3</div>
+<div class="line number4 index3 alt1">4</div>
+<div class="line number5 index4 alt2">5</div>
+<div class="line number6 index5 alt1">6</div>
+<div class="line number7 index6 alt2">7</div>
+<div class="line number8 index7 alt1">8</div>
+<div class="line number9 index8 alt2">9</div>
+<div class="line number10 index9 alt1">10</div>
+<div class="line number11 index10 alt2">11</div>
+</td>
+<td class="code">
+<div class="container">
+<div class="line number1 index0 alt2"><code class="html spaces">&nbsp;</code><code class="html plain">&lt;</code><code class="html keyword">a</code>&nbsp;<code class="html color1">href</code><code class="html plain">=</code><code class="html string">"%6a%61%76%61%73%63%72%69%70%74:%61%6c%65%72%74%28%31%29"</code><code class="html plain">&gt;&lt;/</code><code class="html keyword">a</code><code class="html plain">&gt;</code></div>
+<div class="line number2 index1 alt1"><code class="html plain">URL&nbsp;编码&nbsp;"javascript:alert(1)"</code></div>
+<div class="line number3 index2 alt2"><code class="html plain">&lt;</code><code class="html keyword">a</code>&nbsp;<code class="html color1">href</code><code class="html plain">=</code><code class="html string">"&amp;#x6a;&amp;#x61;&amp;#x76;&amp;#x61;&amp;#x73;&amp;#x63;&amp;#x72;&amp;#x69;&amp;#x70;&amp;#x74;:%61%6c%65%72%74%28%32%29"</code><code class="html plain">&gt;</code></div>
+<div class="line number4 index3 alt1"><code class="html plain">HTML字符实体编码&nbsp;"javascript"&nbsp;和&nbsp;URL&nbsp;编码&nbsp;"alert(2)"</code></div>
+<div class="line number5 index4 alt2"><code class="html spaces">&nbsp;&nbsp;</code><code class="html plain">&lt;</code><code class="html keyword">a</code>&nbsp;<code class="html color1">href</code><code class="html plain">=</code><code class="html string">"javascript%3aalert(3)"</code><code class="html plain">&gt;&lt;/</code><code class="html keyword">a</code><code class="html plain">&gt;</code></div>
+<div class="line number6 index5 alt1"><code class="html plain">URL&nbsp;编码&nbsp;":"</code></div>
+<div class="line number7 index6 alt2"><code class="html spaces">&nbsp;&nbsp;</code><code class="html plain">&lt;</code><code class="html keyword">div</code><code class="html plain">&gt;&amp;#60;img&nbsp;src=x&nbsp;onerror=alert(4)&amp;#62;&lt;/</code><code class="html keyword">div</code><code class="html plain">&gt;</code></div>
+<div class="line number8 index7 alt1"><code class="html plain">HTML字符实体编码&nbsp;&lt;&nbsp;和&nbsp;&gt;</code></div>
+<div class="line number9 index8 alt2"><code class="html spaces">&nbsp;&nbsp;</code><code class="html plain">&lt;</code><code class="html keyword">textarea</code><code class="html plain">&gt;&amp;#60;script&amp;#62;alert(5)&amp;#60;/script&amp;#62;&lt;/</code><code class="html keyword">textarea</code><code class="html plain">&gt;</code></div>
+<div class="line number10 index9 alt1"><code class="html plain">HTML字符实体编码&nbsp;&lt;&nbsp;和&nbsp;&gt;</code></div>
+<div class="line number11 index10 alt2"><code class="html plain">&lt;</code><code class="html keyword">textarea</code><code class="html plain">&gt;&lt;</code><code class="html keyword">script</code><code class="html plain">&gt;alert(6)&lt;/</code><code class="html keyword">script</code><code class="html plain">&gt;&lt;/</code><code class="html keyword">textarea</code><code class="html plain">&gt;</code></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table></div>
+<p>高级部分</p>
+<p>&nbsp;</p>
+<div class="table-wrapper"><table class="syntaxhighlighter  html" border="0" cellspacing="0" cellpadding="0">
+<tbody>
+<tr>
+<td class="gutter">
+<div class="line number1 index0 alt2">1</div>
+<div class="line number2 index1 alt1">2</div>
+<div class="line number3 index2 alt2">3</div>
+<div class="line number4 index3 alt1">4</div>
+<div class="line number5 index4 alt2">5</div>
+<div class="line number6 index5 alt1">6</div>
+<div class="line number7 index6 alt2">7</div>
+<div class="line number8 index7 alt1">8</div>
+<div class="line number9 index8 alt2">9</div>
+<div class="line number10 index9 alt1">10</div>
+<div class="line number11 index10 alt2">11</div>
+<div class="line number12 index11 alt1">12</div>
+<div class="line number13 index12 alt2">13</div>
+<div class="line number14 index13 alt1">14</div>
+<div class="line number15 index14 alt2">15</div>
+<div class="line number16 index15 alt1">16</div>
+</td>
+<td class="code">
+<div class="container">
+<div class="line number1 index0 alt2"><code class="html spaces">&nbsp;&nbsp;</code><code class="html plain">&lt;</code><code class="html keyword">button</code>&nbsp;<code class="html color1">onclick</code><code class="html plain">=</code><code class="html string">"confirm('7&amp;#39;);"</code><code class="html plain">&gt;Button&lt;/</code><code class="html keyword">button</code><code class="html plain">&gt;</code></div>
+<div class="line number2 index1 alt1"><code class="html plain">HTML字符实体编码&nbsp;"&nbsp;'&nbsp;"&nbsp;（单引号）</code></div>
+<div class="line number3 index2 alt2"><code class="html spaces">&nbsp;</code><code class="html plain">&lt;</code><code class="html keyword">button</code>&nbsp;<code class="html color1">onclick</code><code class="html plain">=</code><code class="html string">"confirm('8\u0027);"</code><code class="html plain">&gt;Button&lt;/</code><code class="html keyword">button</code><code class="html plain">&gt;</code></div>
+<div class="line number4 index3 alt1"><code class="html plain">Unicode编码&nbsp;"&nbsp;'&nbsp;"&nbsp;（单引号）</code></div>
+<div class="line number5 index4 alt2"><code class="html spaces">&nbsp;&nbsp;</code><code class="html plain">&lt;</code><code class="html keyword">script</code><code class="html plain">&gt;&amp;#97;&amp;#108;&amp;#101;&amp;#114;&amp;#116&amp;#40;&amp;#57;&amp;#41;&amp;#59&lt;/</code><code class="html keyword">script</code><code class="html plain">&gt;</code></div>
+<div class="line number6 index5 alt1"><code class="html plain">HTML字符实体编码&nbsp;alert(9);</code></div>
+<div class="line number7 index6 alt2"><code class="html spaces">&nbsp;&nbsp;</code><code class="html plain">&lt;</code><code class="html keyword">script</code><code class="html plain">&gt;\u0061\u006c\u0065\u0072\u0074(10);&lt;/</code><code class="html keyword">script</code><code class="html plain">&gt;</code></div>
+<div class="line number8 index7 alt1"><code class="html plain">Unicode&nbsp;编码&nbsp;alert</code></div>
+<div class="line number9 index8 alt2"><code class="html spaces">&nbsp;&nbsp;</code><code class="html plain">&lt;</code><code class="html keyword">script</code><code class="html plain">&gt;\u0061\u006c\u0065\u0072\u0074\u0028\u0031\u0031\u0029&lt;/</code><code class="html keyword">script</code><code class="html plain">&gt;</code></div>
+<div class="line number10 index9 alt1"><code class="html plain">Unicode&nbsp;编码&nbsp;alert(11)</code></div>
+<div class="line number11 index10 alt2"><code class="html spaces">&nbsp;</code><code class="html plain">&lt;</code><code class="html keyword">script</code><code class="html plain">&gt;\u0061\u006c\u0065\u0072\u0074(\u0031\u0032)&lt;/</code><code class="html keyword">script</code><code class="html plain">&gt;</code></div>
+<div class="line number12 index11 alt1"><code class="html plain">Unicode&nbsp;编码&nbsp;alert&nbsp;和&nbsp;12</code></div>
+<div class="line number13 index12 alt2"><code class="html spaces">&nbsp;&nbsp;</code><code class="html plain">&lt;</code><code class="html keyword">script</code><code class="html plain">&gt;alert('13\u0027)&lt;/</code><code class="html keyword">script</code><code class="html plain">&gt;</code></div>
+<div class="line number14 index13 alt1"><code class="html plain">Unicode&nbsp;编码&nbsp;"&nbsp;'&nbsp;"&nbsp;（单引号）</code></div>
+<div class="line number15 index14 alt2"><code class="html spaces">&nbsp;&nbsp;</code><code class="html plain">&lt;</code><code class="html keyword">script</code><code class="html plain">&gt;alert('14\u000a')&lt;/</code><code class="html keyword">script</code><code class="html plain">&gt;</code></div>
+<div class="line number16 index15 alt1"><code class="html plain">Unicode&nbsp;编码换行符（0x0A）</code></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table></div>
+<p>&nbsp;</p>
+<p>额外赠送</p>
+<div class="table-wrapper"><table class="syntaxhighlighter  html" border="0" cellspacing="0" cellpadding="0">
+<tbody>
+<tr>
+<td class="gutter">
+<div class="line number1 index0 alt2">1</div>
+</td>
+<td class="code">
+<div class="container">
+<div class="line number1 index0 alt2"><code class="html plain">&lt;</code><code class="html keyword">a</code>&nbsp;<code class="html color1">href</code><code class="html plain">=</code><code class="html string">"&amp;#x6a;&amp;#x61;&amp;#x76;&amp;#x61;&amp;#x73;&amp;#x63;&amp;#x72;&amp;#x69;&amp;#x70;&amp;#x74;&amp;#x3a;&amp;#x25;&amp;#x35;&amp;#x63;&amp;#x25;&amp;#x37;&amp;#x35;&amp;#x25;&amp;#x33;&amp;#x30;&amp;#x25;&amp;#x33;&amp;#x30;&amp;#x25;&amp;#x33;&amp;#x36;&amp;#x25;&amp;#x33;&amp;#x31;&amp;#x25;&amp;#x35;&amp;#x63;&amp;#x25;&amp;#x37;&amp;#x35;&amp;#x25;&amp;#x33;&amp;#x30;&amp;#x25;&amp;#x33;&amp;#x30;&amp;#x25;&amp;#x33;&amp;#x36;&amp;#x25;&amp;#x36;&amp;#x33;&amp;#x25;&amp;#x35;&amp;#x63;&amp;#x25;&amp;#x37;&amp;#x35;&amp;#x25;&amp;#x33;&amp;#x30;&amp;#x25;&amp;#x33;&amp;#x30;&amp;#x25;&amp;#x33;&amp;#x36;&amp;#x25;&amp;#x33;&amp;#x35;&amp;#x25;&amp;#x35;&amp;#x63;&amp;#x25;&amp;#x37;&amp;#x35;&amp;#x25;&amp;#x33;&amp;#x30;&amp;#x25;&amp;#x33;&amp;#x30;&amp;#x25;&amp;#x33;&amp;#x37;&amp;#x25;&amp;#x33;&amp;#x32;&amp;#x25;&amp;#x35;&amp;#x63;&amp;#x25;&amp;#x37;&amp;#x35;&amp;#x25;&amp;#x33;&amp;#x30;&amp;#x25;&amp;#x33;&amp;#x30;&amp;#x25;&amp;#x33;&amp;#x37;&amp;#x25;&amp;#x33;&amp;#x34;&amp;#x28;&amp;#x31;&amp;#x35;&amp;#x29;"</code><code class="html plain">&gt;&lt;/</code><code class="html keyword">a</code><code class="html plain">&gt;</code></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table></div>
+<p>&nbsp;</p>
+<p>这些问题的答案在<a href="http://test.attacker-domain.com/browserparsing/answers.txt" rel="noopener nofollow">这里</a>，测试页面在<a href="http://test.attacker-domain.com/browserparsing/tests.html" rel="noopener nofollow">这里</a>。如果你能答对大部分问题并且没有感觉困惑，看到这就停下吧。如果没有，那么余下的内容将能够很好的帮助你理解浏览器解析过程。</p>
+<p>在解析一篇HTML文档时主要有三个处理过程：HTML解析，URL解析和JavaScript解析。每个解析器负责解码和解析HTML文档中它所对应的部分，其工作原理已经在相应的解析器规范中明确写明。</p>
+<p>0x01&nbsp; HTML解析</p>
+<p>从XSS的角度来说，我们感兴趣的是HTML文档是如何被词法解析的，因为我们并不想让用户提供的数据最终被解析为一段可执行脚本的script标签。HTML词法解析细则在<a href="http://www.whatwg.org/specs/web-apps/current-work/multipage/tokenization.html" rel="noopener nofollow">这里</a>。HTML词法解析细则是一篇冗长的文档，这篇博文并不会覆盖它的所有内容。这篇博文只会覆盖有关文档解码如何结束，以及新token何时被创建这两个有趣的部分。</p>
+<p>一个HTML解析器作为一个状态机，它从输入流中获取字符并按照转换规则转换到另一种状态。在解析过程中，任何时候它只要遇到一个'&lt;'符号（后面没有跟'/'符号）就会进入“标签开始状态(Tag open state)”。然后转变到“标签名状态(Tag name state)”，“前属性名状态(before attribute name state)”......最后进入“数据状态(Data state)”并释放当前标签的token。当解析器处于“数据状态(Data state)”时，它会继续解析，每当发现一个完整的标签，就会释放出一个token。</p>
+<p>（译者注：词法解析是《编译原理》所涉及的内容，学习过编译原理的读者可以更好的理解“状态机”的工作原理）。</p>
+<p>这里有三种情况可以容纳字符实体，“数据状态中的字符引用”，“RCDATA状态中的字符引用”和“属性值状态中的字符引用”。在这些状态中HTML字符实体将会从“&amp;#...”形式解码，对应的解码字符会被放入数据缓冲区中。例如，在问题4中，“&lt;”和“&gt;”字符被编码为“&amp;#60;”和“&amp;#62;”。当解析器解析完“&lt;div&gt;”并处于“数据状态”时，这两个字符将会被解析。当解析器遇到“&amp;”字符，它会知道这是“数据状态的字符引用”，因此会消耗一个字符引用（例如“&amp;#60;”）并释放出对应字符的token。在这个例子中，对应字符指的是“&lt;”和“&gt;”。读者可能会想：这是不是意味着“&lt;”和“&gt;”的token将会被理解为标签的开始和结束，然后其中的脚本会被执行？答案是脚本并不会被执行。原因是解析器在解析这个字符引用后不会转换到“标签开始状态”。正因为如此，就不会建立新标签。因此，我们能够利用字符实体编码这个行为来转义用户输入的数据从而确保用户输入的数据只能被解析成“数据”。</p>
+<p>（译者注：这里要解释几个概念）</p>
+<p>字符实体(character entities)</p>
+<p>字符实体是一个转义序列，它定义了一般无法在文本内容中输入的单个字符或符号。一个字符实体以一个&amp;符号开始，后面跟着一个预定义的实体的名称，或是一个#符号以及字符的十进制数字。</p>
+<p>HTML字符实体(HTML character entities)</p>
+<p>在HTML中，某些字符是预留的。例如在HTML中不能使用“&lt;”或“&gt;”，这是因为浏览器可能误认为它们是标签的开始或结束。如果希望正确地显示预留字符，就需要在HTML中使用对应的字符实体。一个HTML字符实体描述如下：</p>
+<p><a href="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/t0171d5ca6fbb87488f.png" target="_blank" rel="noopener nofollow"><img title="t0171d5ca6fbb87488f.png" alt="http://p9.qhimg.com/t0171d5ca6fbb87488f.png" data-src="http://p9.qhimg.com/t0171d5ca6fbb87488f.png" class=" ls-is-cached lazyloaded" src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/t0171d5ca6fbb87488f.png"></a></p>
+<p>需要注意的是，某些字符没有实体名称，但可以有实体编号。</p>
+<p>字符引用（character references）</p>
+<p>字符引用包括“字符值引用”和“字符实体引用”。在上述HTML例子中，'&lt;'对应的字符值引用为'&amp;#60;'，对应的字符实体引用为‘&amp;lt;’。字符实体引用也被叫做“实体引用”或“实体”。）</p>
+<p>现在你大概会明白为什么我们要转义“&lt;”、“&gt;”、“'” (单引号)和“"” (双引号)字符了。但为什么我们还要转义“&amp;”呢？大概 “&amp;” 是无辜的，任何跟在“&amp;”后面的内容仅会被解释为字符引用，这并不会开始或闭合一个标签。事实上，“&amp;”字符并不会打断HTML级别的转义过程，但它可能会打断其他级别的转义过程。我们将在JavaScript解析的部分讨论这个问题。</p>
+<p>这里要提一下RCDATA的概念。要了解什么是RCDATA，我们先要了解另一个概念。在HTML中有五类元素：</p>
+<p>1.&nbsp; 空元素(Void elements)，如&lt;area&gt;,&lt;br&gt;,&lt;base&gt;等等</p>
+<p>2.&nbsp; 原始文本元素(Raw text elements)，有&lt;script&gt;和&lt;style&gt;</p>
+<p>3.&nbsp; RCDATA元素(RCDATA elements)，有&lt;textarea&gt;和&lt;title&gt;</p>
+<p>4.&nbsp; 外部元素(Foreign elements)，例如MathML命名空间或者SVG命名空间的元素</p>
+<p>5.&nbsp; 基本元素(Normal elements)，即除了以上4种元素以外的元素</p>
+<p>五类元素的区别如下：</p>
+<p>1.&nbsp; 空元素，不能容纳任何内容（因为它们没有闭合标签，没有内容能够放在开始标签和闭合标签中间）。</p>
+<p>2.&nbsp; 原始文本元素，可以容纳文本。</p>
+<p>3.&nbsp; RCDATA元素，可以容纳文本和字符引用。</p>
+<p>4.&nbsp; 外部元素，可以容纳文本、字符引用、CDATA段、其他元素和注释</p>
+<p>5.&nbsp; 基本元素，可以容纳文本、字符引用、其他元素和注释</p>
+<p>如果我们回头看HTML解析器的规则，其中有一种可以容纳字符引用的情况是“RCDATA状态中的字符引用”。这意味着在&lt;textarea&gt;和&lt;title&gt;标签中的字符引用会被HTML解析器解码。这里要再提醒一次，在解析这些字符引用的过程中不会进入“标签开始状态”。这样就可以解释问题5了。另外，对RCDATA有个特殊的情况。在浏览器解析RCDATA元素的过程中，解析器会进入“RCDATA状态”。在这个状态中，如果遇到“&lt;”字符，它会转换到“RCDATA小于号状态”。如果“&lt;”字符后没有紧跟着“/”和对应的标签名，解析器会转换回“RCDATA状态”。这意味着在RCDATA元素标签的内容中（例如&lt;textarea&gt;或&lt;title&gt;的内容中），唯一能够被解析器认做是标签的就是“&lt;/textarea&gt;”或者“&lt;/title&gt;”。当然，这要看开始标签是哪一个。因此，在“&lt;textarea&gt;”和“&lt;title&gt;”的内容中不会创建标签，就不会有脚本能够执行。这也就解释了为什么问题6中的脚本不会被执行。</p>
+<p>我们来迅速看一下CDATA元素。任何在CDATA元素中的内容将不会触发解析器创建开始标签。闭合CDATA元素的标志是“]]&gt;”序列。因此如果用户想逃出CDATA元素，就要用未经任何编码的“]]&gt;”序列，不然是不会逃出CDATA元素的。</p>
+<p>0x02&nbsp; URL解析</p>
+<p>URL解析器也是一个状态机模型，从输入流中进来的字符可以引导URL解析器转换到不同的状态。解析器的解析细则在<a href="http://url.spec.whatwg.org/" rel="noopener nofollow">这里</a>。其中有很多有关安全或XSS转义的内容。</p>
+<p>首先，URL资源类型必须是ASCII字母（U+0041-U+005A || U+0061-U+007A），不然就会进入“无类型”状态。例如，你不能对协议类型进行任何的编码操作，不然URL解析器会认为它无类型。这就是为什么问题1中的代码不能被执行。因为URL中被编码的“javascript”没有被解码，因此不会被URL解析器识别。该原则对协议后面的“：”（冒号）同样适用，即问题3也得到解答。然而，你可能会想到：为什么问题2中的脚本被执行了呢？如果你记得我们在HTML解析部分讨论的内容的话，是否还记得有一个情况叫做“属性值中的字符引用”，在这个情况中字符引用会被解码。我们将稍后讨论解析顺序，但在这里，HTML解析器解析了文档，创建了标签token，并且对href属性里的字符实体进行了解码。然后，当HTML解析器工作完成后，URL解析器开始解析href属性值里的链接。在这时，“javascript”协议已经被解码，它能够被URL解析器正确识别。然后URL解析器继续解析链接剩下的部分。由于是“javascript”协议，JavaScript解析器开始工作并执行这段代码，这就是为什么问题2中的代码能够被执行。</p>
+<p>其次，URL编码过程使用UTF-8编码类型来编码每一个字符。如果你尝试着将URL链接做了其他编码类型的编码，URL解析器就可能不会正确识别。</p>
+<p>0x03&nbsp; JavaScript 解析</p>
+<p>JavaScript解析过程与HTML解析过程有点不一样。JavaScript语言是一门内容无关语言。对应着有一份内容无关的语法来描述它。我们可以利用内容无关语法来解释JavaScript是如何解析的。ECMAScript-262细则在<a href="http://www.ecma-international.org/publications/standards/Ecma-262.htm" rel="noopener nofollow">这里</a>，语法文件在<a href="http://www.antlr3.org/grammar/1206736738015/JavaScript.g" rel="noopener nofollow">这里</a>。</p>
+<p>这里有一些与安全相关的事情：字符是如何被解码的？对一些字符进行转义是否有效？</p>
+<p>开始之前，让我们来回到HTML解析过程中的“原始文本”元素。我故意将HTML中的一部分留到这个章节是因为它与JavaScript解析有关。所有的“script”块都属于“原始文本”元素。“script”块有个有趣的属性：在块中的字符引用并不会被解析和解码。如果你去看“脚本数据状态”的状态转换规则，就会发现没有任何规则能转移到字符引用状态。这意味着什么？这意味着问题9中的脚本并不会执行。所以如果攻击者尝试着将输入数据编码成字符实体并将其放在script块中，它将不会被执行。</p>
+<p>那像“\uXXXX”（例如\u0000,\u000A）这样的字符呢，JavaScript会解析这些字符来执行吗？简单的说：视情况而定。具体的说就是要看被编码的序列到底是哪部分。首先，像\uXXXX一样的字符被称作Unicode转义序列。从上下文来看，你可以将转义序列放在3个部分：字符串中，标识符名称中和控制字符中。</p>
+<p>字符串中：当Unicode转义序列存在于字符串中时，它只会被解释为正规字符，而不是单引号，双引号或者换行符这些能够打破字符串上下文的字符。这项内容清楚地写在ECMAScript中。因此，Unicode转义序列将永远不会破环字符串上下文，因为它们只能被解释成字符串常量。</p>
+<p>ECMA-262 5.1版 6章 6节</p>
+<p>“ECMAScript 与 JAVA 编程语言在对待Unicode转义序列时的行为不同。在Java程序中，如果Unicode转义序列\u000A出现在单行字符串注释中，它会被解释为行结束符（换行符），因此会导致接下来的Unicode字符不是注释的一部分。同样的，如果Unicode转义序列\u000A出现在Java程序的字符串常量中，它同样会被解释为行结束符（换行符），这在字符串常量中是不被允许的——如果需要在字符串常量中表示换行，需要用\n来代替\u000A。在ECMAScript程序中，出现在注释中的Unicode转义序列永远不会被解释，因此不会导致注释换行问题。同样地，ECMAScript程序中，在字符串常量中出现的Unicode转义序列会被当作字符串常量中的一个Unicode字符，并且不会被解释成有可能结束字符串常量的换行符或者引号。”</p>
+<p>标识符名称中：当Unicode转义序列出现在标识符名称中时，它会被解码并解释为标识符名称的一部分，例如函数名，属性名等等。这可以用来解释问题10。如果我们深入研究JavaScript细则，可以看到如下内容：</p>
+<p>“Unicode转义序列（如\u000A\u000B）同样被允许用在标识符名称中，被当作名称中的一个字符。而将'\'符号前置在Unicode转义序列串（如\u000A000B000C）并不能作为标识符名称中的字符。将Unicode转义序列串放在标识符名称中是非法的。”</p>
+<p>控制字符:当用Unicode转义序列来表示一个控制字符时，例如单引号、双引号、圆括号等等，它们将不会被解释成控制字符，而仅仅被解码并解析为标识符名称或者字符串常量。如果你去看ECMAScript的语法，就会发现没有一处会用Unicode转义序列来当作控制字符。例如，如果解析器正在解析一个函数调用语句，圆括号部分必须为“(”和“)”，而不能是\u0028和\u0029。</p>
+<p>总的来说，Unicode转义序列只有在标识符名称里不被当作字符串，也只有在标识符名称里的编码字符能够被正常的解析。如果我们回看问题11，它并不会被执行。因为“(11)”不会被正确的解析，而“alert(11)”也不是一个有效的标识符名称。问题12不会被正确执行要么是因为'\u0031\u0032'不会被解释为字符串常量（因为它们没有用引号闭合）要么是因为它们是ASCII型数字。问题13不会执行的原因是'\u0027'仅仅会被解释成单引号文本，而此时字符串是未闭合的。问题14能够执行的原因是'\u000a'会被解释成换行符文本，这并不会导致真正的换行从而引发JavaScript语法错误。</p>
+<p>0x04&nbsp; 解析流</p>
+<p>在讨论过HTML，URL和JavaScript解析之后，读者应该能够对“什么会被解码”、“在什么地方被解码”和“如何被解码”这几件事有了清楚的认识。现在，另一个重要的概念是所有这些是如何协同工作的？在网页中有很多地方需要多个解析器来协同工作。因此，对于解码和转义问题，我们将简要的讨论浏览器如何解析一篇文档。</p>
+<p>当浏览器从网络堆栈中获得一段内容后，触发HTML解析器来对这篇文档进行词法解析。在这一步中字符引用被解码。在词法解析完成后，DOM树就被创建好了，JavaScript解析器会介入来对内联脚本进行解析。在这一步中Unicode转义序列和Hex转义序列被解码。同时，如果浏览器遇到需要URL的上下文，URL解析器也会介入来解码URL内容。在这一步中URL解码操作被完成。由于URL位置不同，URL解析器可能会在JavaScript解析器之前或之后进行解析。考虑如下两种情况</p>
+<div class="table-wrapper"><table class="syntaxhighlighter  html" border="0" cellspacing="0" cellpadding="0">
+<tbody>
+<tr>
+<td class="gutter">
+<div class="line number1 index0 alt2">1</div>
+<div class="line number2 index1 alt1">2</div>
+</td>
+<td class="code">
+<div class="container">
+<div class="line number1 index0 alt2"><code class="html plain">Example&nbsp;A:&nbsp;&lt;</code><code class="html keyword">a</code>&nbsp;<code class="html color1">href</code><code class="html plain">=</code><code class="html string">"UserInput"</code><code class="html plain">&gt;&lt;/</code><code class="html keyword">a</code><code class="html plain">&gt;</code></div>
+<div class="line number2 index1 alt1"><code class="html plain">Example&nbsp;B:&nbsp;&lt;</code><code class="html keyword">a</code>&nbsp;<code class="html plain">href=#&nbsp;&nbsp;&nbsp;</code><code class="html color1">onclick</code><code class="html plain">=</code><code class="html string">"window.open('UserInput')"</code><code class="html plain">&gt;&lt;/</code><code class="html keyword">a</code><code class="html plain">&gt;</code></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table></div>
+<p>在例A中，HTML解析器将首先开始工作，并对UserInput中的字符引用进行解码。然后URL解析器开始对href值进行URL解码。最后，如果URL资源类型是JavaScript，那么JavaScript解析器会进行Unicode转义序列和Hex转义序列的解码。再之后，解码的脚本会被执行。因此，这里涉及三轮解码，顺序是HTML，URL和JavaScript。</p>
+<p>在例B中，HTML解析器首先工作。然而接下来，JavaScript解析器开始解析在onclick事件处理器中的值。这是因为在onclick事件处理器中是script的上下文。当这段JavaScript被解析并被执行的时候，它执行的是“window.open()”操作，其中的参数是URL的上下文。在此时，URL解析器开始对UserInput进行URL解码并把结果回传给JavaScript引擎。因此这里一共涉及三轮解码，顺序是HTML，JavaScript和URL。</p>
+<p>有没有可能解码次数超过3轮呢？考虑一下这个例子</p>
+<div class="table-wrapper"><table class="syntaxhighlighter  html" border="0" cellspacing="0" cellpadding="0">
+<tbody>
+<tr>
+<td class="gutter">
+<div class="line number1 index0 alt2">1</div>
+</td>
+<td class="code">
+<div class="container">
+<div class="line number1 index0 alt2"><code class="html plain">Example&nbsp;&nbsp;&nbsp;C:&nbsp;&lt;</code><code class="html keyword">a</code>&nbsp;&nbsp;&nbsp;<code class="html color1">href</code><code class="html plain">=</code><code class="html string">"javascript:window.open('UserInput')"</code><code class="html plain">&gt;</code></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table></div>
+<p>例C与例A很像，但不同的是在UserInput前多了window.open()操作。因此，对UserInput多了一次额外的URL解码操作。总的来说，四轮解码操作被完成，顺序是HTML，URL，JavaScript和URL。</p>
+<p>此时此刻，读者应该已经获得解答博文开始提到的所有问题的必要知识。如果你有任何的问题，欢迎留言讨论。</p>
+<p>0x05&nbsp; 总结</p>
+<p>简而言之，作为攻击者为了弄明白如何让XSS向量逃逸出上下文，或者为了使你的应用能够正确编码用户的输入，你必须真正明白浏览器的解析原理以及它们（HTML，URL和JavaScript解析器）是如何协同工作的。只有这样，你才能从浏览器的角度去正确编码你的向量。</p>
+<p>&nbsp;</p>
+<p>本文由 安全客 翻译，转载请注明“转自安全客”，并附上链接。<br><a class="text-more" href="http://www.attacker-domain.com/2013/04/deep-dive-into-browser-parsing-and-xss.html" target="_blank" rel="noopener nofollow">原文链接：http://www.attacker-domain.com/2013/04/deep-dive-into-browser-parsing-and-xss.html</a></p>
+
+</div>
+<div id="MySignature" role="contentinfo">
+    x000s'''
+</div>
+<div class="clear"></div>
+<div id="blog_post_info_block" role="contentinfo" class="post-meta-container">
+<div id="BlogPostCategory" class="post-meta-item detail-post-categories post-meata-categories">
+    分类: 
+            <a href="https://www.cnblogs.com/b1gstar/category/869032.html" target="_blank">xss 高级</a></div>
+<div id="EntryTag" class="post-meta-item detail-post-tags">
+    
+    <div class="post-meta-item post-meta-disclaimer">
+        免责声明：本内容来自平台创作者，博客园系信息发布平台，仅提供信息存储空间服务。
+    </div>
+</div>
+
+    <div id="blog_post_info">
+<div id="green_channel">
+        <a href="javascript:void(0);" id="green_channel_digg" onclick="DiggIt(5996549,cb_blogId,1);green_channel_success(this,&#39;谢谢推荐！&#39;);">好文要顶</a>
+        <a id="green_channel_follow" onclick="follow(&#39;049a6071-9148-e611-9fc1-ac853d9f53cc&#39;);" href="javascript:void(0);">关注我</a>
+    <a id="green_channel_favorite" onclick="AddToWz(cb_entryId);return false;" href="javascript:void(0);">收藏该文</a>
+    <a id="green_channel_wechat" href="javascript:void(0);" onclick="shareManager.wechatShare()">微信分享</a>
+</div>
+<div id="author_profile">
+    <div id="author_profile_info" class="author_profile_info">
+            <a href="https://home.cnblogs.com/u/b1gstar/" target="_blank"><img src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/20160713084041.png" class="author_avatar" alt=""></a>
+        <div id="author_profile_detail" class="author_profile_info post-detail-profile">
+            <a href="https://home.cnblogs.com/u/b1gstar/">B1gstar</a>
+            <br>
+            <a href="https://home.cnblogs.com/u/b1gstar/followers/">粉丝 - <span class="follower-count">7</span></a>
+            <a href="https://home.cnblogs.com/u/b1gstar/followees/">关注 - <span class="following-count">4</span></a><br>
+        </div>
+    </div>
+    <div class="clear"></div>
+    <div id="author_profile_honor"></div>
+    <div id="author_profile_follow" class="follow-tip">
+                <a href="javascript:void(0);" onclick="follow(&#39;049a6071-9148-e611-9fc1-ac853d9f53cc&#39;);return false;">+加关注</a>
+    </div>
+</div>
+<div id="div_digg">
+    <div class="diggit" onclick="votePost(5996549,&#39;Digg&#39;)">
+        <span class="diggnum" id="digg_count">0</span>
+    </div>
+    <div class="buryit" onclick="votePost(5996549,&#39;Bury&#39;)">
+        <span class="burynum" id="bury_count">0</span>
+    </div>
+    <div class="clear"></div>
+    <div class="diggword" id="digg_tips">
+    </div>
+        <div id="vip_tip"><a class="tip" href="https://cnblogs.vip/" target="_blank">升级成为会员</a></div>
+</div>
+
+<script type="text/javascript">
+    currentDiggType = 0;
+</script>
+</div>
+    <div class="clear"></div>
+    <div id="post_next_prev">
+
+    <a href="https://www.cnblogs.com/b1gstar/p/5926074.html" class="p_n_p_prefix">« </a> 上一篇：    <a href="https://www.cnblogs.com/b1gstar/p/5926074.html" data-featured-image="" title="发布于 2016-10-01 17:25">为什么在留言处插入&lt;script&gt;alert(1)&lt;/script&gt;不弹框</a>
+    <br>
+    <a href="https://www.cnblogs.com/b1gstar/p/6075740.html" class="p_n_p_prefix">» </a> 下一篇：    <a href="https://www.cnblogs.com/b1gstar/p/6075740.html" data-featured-image="" title="发布于 2016-11-17 22:13">（转）宽字节编码类型的XSS</a>
+
+</div>
+</div>
+            </div>
+            <div class="postDesc">posted @ 
+<span id="post-date" data-last-update-days="0" data-date-updated="2016-10-25 14:19">2016-10-25 14:19</span>&nbsp;
+<a href="https://www.cnblogs.com/b1gstar">B1gstar</a>&nbsp;
+阅读(<span id="post_view_count">2759</span>)&nbsp;
+评论(<span id="post_comment_count">1</span>)&nbsp;
+&nbsp;
+<a href="javascript:void(0)" onclick="AddToWz(5996549);return false;">收藏</a>&nbsp;
+<a href="https://report.cnblogs.com/?targetLink=https%3A%2F%2Fwww.cnblogs.com%2Fb1gstar%2Fp%2F5996549.html&amp;targetId=5996549&amp;targetType=0" target="_blank">举报</a>
+</div>
+        </div>
+	    
+	    
+    </div><!--end: topics 文章、评论容器-->
+</div>
+<script>
+    var cb_entryId = 5996549, cb_entryCreatedDate = '2016-10-25 14:19', cb_postType = 1, cb_postTitle = '（转自360安全客）深入理解浏览器解析机制和XSS向量编码';
+    var allowComments = true, cb_blogId = 293954, cb_blogApp = 'b1gstar', cb_blogUserGuid = '049a6071-9148-e611-9fc1-ac853d9f53cc';
+    mermaidRender.render()
+    markdown_highlight()
+    zoomManager.apply("#cnblogs_post_body img:not(.code_img_closed):not(.code_img_opened)");    
+</script>
+<a id="!comments"></a>
+<div id="blog-comments-placeholder"></div>
+<div id="comment_form" class="commentform">
+    <a name="commentform"></a>
+    <div id="divCommentShow"></div>
+    <div id="comment_nav">
+        <div class="comment-nav-right">
+            <span id="span_refresh_tips"></span><a href="https://www.cnblogs.com/b1gstar/p/5996549.html#" onclick="return RefreshPage();">刷新页面</a><a href="https://www.cnblogs.com/b1gstar/p/5996549.html#top">返回顶部</a>
+        </div>
+    </div>
+    <div id="comment_form_container"><div class="login_tips">
+    登录后才能查看或发表评论，立即 <a rel="nofollow" href="javascript:void(0);" class="underline" onclick="return account.login(&#39;!comments&#39;);">登录</a> 或者
+    <a href="https://www.cnblogs.com/">逛逛</a> 博客园首页
+</div>
+</div>
+    <div class="ad_text_commentbox" id="ad_text_under_commentbox"></div>
+        <div id="cnblogs_ch"><a href="https://www.cnblogs.com/cmt/p/20244560" target="_blank" onclick="countCreativeClicks(&#39;CH-1Panel&#39;)">【推荐】 园友特惠｜ 1Panel 企业版 &amp; AI 一体机限量放售，直降 5100！</a><br><a href="https://harmonyos.cnblogs.com/p/28310" target="_blank" onclick="countCreativeClicks(&#39;CH-HarmonyOS&#39;)">【推荐】HarmonyOS 6.1.0 创新特性“悬浮页签+沉浸光感”精品文章专题</a><br><a href="https://ais.cn/u/QjqYJr" target="_blank" onclick="countCreativeClicks(&#39;CH-艾思科蓝&#39;)">【推荐】科研领域的连接者艾思科蓝，一站式科研学术服务数字化平台</a><br></div>
+    <div id="opt_under_post"></div>
+        <div id="blog_c1" class="under-post-card below-post-card">
+            <a href="https://www.trae.com.cn/?utm_source=advertising&amp;utm_medium=cnblogs_ug_cpa&amp;utm_term=hw_trae_cnblogs" rel="nofollow" target="_blank" onclick="countCreativeClicks(&#39;C1-字节-trae&#39;)">
+                <img src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/35695-20251201125434258-461912837.webp" onload="countCreativeImpressions(&#39;C1-字节-trae&#39;)" alt="" style="width:300px!important;height:250px!important;min-width:300px!important;max-width:300px!important;">
+                <span id="c1_impression" style="display:none"></span>
+            </a>
+        </div>
+    <div id="under_post_card1"><div class="under-post-card below-post-card">
+<header>编辑推荐：</header>
+<ul>
+    <li><a href="https://www.cnblogs.com/charlee44/p/20296178" target="_blank">代码之外：一个技术人的职场困境与自我和解</a></li>
+    <li><a href="https://www.cnblogs.com/ZyCoder/p/20176104" target="_blank">贩卖焦虑的时代，我终于接住了真实的焦虑</a></li>
+    <li><a href="https://www.cnblogs.com/whuanle/p/20088309" target="_blank">工良吐槽篇：万字长文细说 AI 落地之笑谈</a></li>
+    <li><a href="https://www.cnblogs.com/Zhang-Xiang/p/20028472" target="_blank">代码是 AI 写的，生产事故谁背锅？</a></li>
+    <li><a href="https://www.cnblogs.com/BettaFish/p/20012355" target="_blank">在 Avalonia 中编写高性能动画 </a></li>
+</ul>
+</div></div>
+    <div id="related_posts_card"></div>
+    <div id="under_post_card2"></div>
+    <div id="HistoryToday" class="under-post-card below-post-card"></div>
+    <script type="text/javascript">
+        var commentManager = new blogCommentManager();
+        commentManager.renderComments(0);
+        fixPostBody();
+        window.footnoteTipManager.generateFootnoteTips();
+
+            window.tocManager.displayDisableTocTips = false;
+            window.tocManager.generateToc();
+            
+            setTimeout(function() { countViews(cb_blogId, cb_entryId); }, 50);
+            
+            deliverT2();
+            deliverC1C2();
+            loadNewsAndKb();
+            
+            LoadPostCategoriesTags(cb_blogId, cb_entryId);
+            
+            LoadPostInfoBlock(cb_blogId, cb_entryId, cb_blogApp, cb_blogUserGuid);
+            GetPrevNextPost(cb_entryId, cb_blogId, cb_entryCreatedDate, cb_postType);
+            loadOptUnderPost();
+            GetHistoryToday(cb_blogId, cb_blogApp, cb_entryCreatedDate);
+                </script>
+</div>
+
+	</div>
+	</div>
+	<div id="sideBar">
+		<div id="sideBarMain">
+			
+			<div id="blog-calendar" style="display:none"></div><script>loadBlogDefaultCalendar();</script>			
+			<div id="leftcontentcontainer">
+				<div id="blog-sidecolumn"><div id="sidebar_search" class="sidebar-block">
+    <div class="mySearch my-search">
+        <h3 class="catListTitle">搜索</h3>
+        <div id="sidebar_search_box">
+            <div id="widget_my_zzk" class="div_my_zzk">
+                <input type="text" id="q" onkeydown="return zzk_go_enter(event);" class="input_my_zzk">&nbsp;<input onclick="zzk_go()" type="button" value="找找看" id="btnZzk" class="btn_my_zzk">
+            </div>
+            
+        </div>
+    </div>
+</div>
+
+
+
+
+
+<div id="sidebar_toptags" class="sidebar-block">
+    <div class="catListTag">
+    <h3 class="catListTitle"><a href="https://www.cnblogs.com/b1gstar/tag/" class="sidebar-card-title-a">我的标签</a></h3>
+<ul>
+        <li>
+            <a href="https://www.cnblogs.com/b1gstar/tag/XSS%20Challenge/">XSS Challenge<span class="tag-count">(1)</span></a>
+        </li>
+    
+
+</ul>
+</div>
+
+
+</div>
+
+
+
+<div id="sidebar_categories">
+
+    <div id="sidebar_postcategory" class="catListPostCategory sidebar-block">
+        <h3 class="catListTitle">
+            
+    <a class="sidebar-card-title-a" href="https://www.cnblogs.com/b1gstar/post-categories">随笔分类</a>
+
+
+
+        </h3>
+
+        <ul>
+
+                <li data-category-list-item-visible="true" style="display: block">
+                    <a href="https://www.cnblogs.com/b1gstar/category/1638774.html" style="--cnb-category-item-link-indent-size: calc(0 * 1em)" class="category-item-link " rel="" target="">php(6)</a>
+ 
+                </li>                
+                <li data-category-list-item-visible="true" style="display: block">
+                    <a href="https://www.cnblogs.com/b1gstar/category/869033.html" style="--cnb-category-item-link-indent-size: calc(0 * 1em)" class="category-item-link " rel="" target="">xss 案例(4)</a>
+ 
+                </li>                
+                <li data-category-list-item-visible="true" style="display: block">
+                    <a href="https://www.cnblogs.com/b1gstar/category/869032.html" style="--cnb-category-item-link-indent-size: calc(0 * 1em)" class="category-item-link " rel="" target="">xss 高级(4)</a>
+ 
+                </li>                
+                <li data-category-list-item-visible="true" style="display: block">
+                    <a href="https://www.cnblogs.com/b1gstar/category/869031.html" style="--cnb-category-item-link-indent-size: calc(0 * 1em)" class="category-item-link " rel="" target="">xss 基础(11)</a>
+ 
+                </li>                
+                <li data-category-list-item-visible="true" style="display: block">
+                    <a href="https://www.cnblogs.com/b1gstar/category/869117.html" style="--cnb-category-item-link-indent-size: calc(0 * 1em)" class="category-item-link " rel="" target="">xss 题目(1)</a>
+ 
+                </li>                
+                <li data-category-list-item-visible="true" style="display: block">
+                    <a href="https://www.cnblogs.com/b1gstar/category/1290287.html" style="--cnb-category-item-link-indent-size: calc(0 * 1em)" class="category-item-link " rel="" target="">杂记(5)</a>
+ 
+                </li>                
+            
+        </ul>
+
+
+    </div>    
+    <div id="sidebar_links869343" class="catList sidebar-block">
+        <h3 class="catListTitle">
+            
+Links
+
+
+        </h3>
+
+        <ul>
+
+                <li data-category-list-item-visible="true" style="display: block">
+                    <a href="http://brutelogic.com.br/blog/" style="--cnb-category-item-link-indent-size: calc(0 * 1em)" class="category-item-link " rel="nofollow noopener noreferrer" target="">hack2learn</a>
+ 
+                </li>                
+                <li data-category-list-item-visible="true" style="display: block">
+                    <a href="https://html5sec.org/" style="--cnb-category-item-link-indent-size: calc(0 * 1em)" class="category-item-link " rel="nofollow noopener noreferrer" target="">html5sec.org</a>
+ 
+                </li>                
+            
+        </ul>
+
+
+    </div>    
+</div>
+
+<div id="sidebar_topviewedposts" class="sidebar-block">
+    <div class="catListView">
+    <h3 class="catListTitle">
+        <a href="https://www.cnblogs.com/b1gstar/most-viewed" class="sidebar-card-title-a">
+    阅读排行榜
+</a>
+
+    </h3>
+    <div id="TopViewPostsBlock">
+        <ul style="word-break:break-all">
+                    <li>
+                        <a href="https://www.cnblogs.com/b1gstar/p/5926074.html">
+                            1. 为什么在留言处插入&lt;script&gt;alert(1)&lt;/script&gt;不弹框(14628)
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://www.cnblogs.com/b1gstar/p/13973324.html">
+                            2. windows环境下写入一句话木马的转义问题(3188)
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://www.cnblogs.com/b1gstar/p/5779352.html">
+                            3. (转)Bypass xss过滤的测试方法(3008)
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://www.cnblogs.com/b1gstar/p/5996549.html">
+                            4. （转自360安全客）深入理解浏览器解析机制和XSS向量编码(2759)
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://www.cnblogs.com/b1gstar/p/5789234.html">
+                            5. （转）GET来的漏洞(2420)
+                        </a>
+                    </li>
+        </ul>
+    </div>
+</div>
+</div>
+
+
+
+</div>
+					<script>loadBlogSideColumn()</script>
+			</div>			
+		</div>
+	</div>
+	<div class="clear"></div>
+	</div>
+	<div class="clear"></div>
+	<div id="footer">
+		<a href="https://www.cnblogs.com/" id="footer_site_link" class="footer-brand">博客园</a>
+<span class="footer-copyright"> &nbsp;©&nbsp; 2004-2026</span>
+<br><span class="footer-icp">
+    <a target="_blank" href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33010602011771"><img src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/ghs.png">浙公网安备 33010602011771号</a>
+    <a href="https://beian.miit.gov.cn/" target="_blank">浙ICP备2021040463号-3</a>
+</span>
+
+
+
+	</div>
+</div>
+
+
+
+    
+
+    <input type="hidden" id="antiforgery_token" value="CfDJ8OBZrxGJLy5MvghieKIKXCwn6Z_sK3iC9Mo-kGfAJ514D7KBCJom-OBTMsSxVijjh2GyIKr4iQQN81FgQXrZqtZRHPQpDsgVb1-5sQ3IJ23svyTtwR-Ki2AhocZBMOKPNOCQSplV6_snRMHAkOYqpZw">
+    <script async="" src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/js"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-M95P3TTWJZ');
+</script>
+<script defer="" src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/hm.js.下载"></script>
+
+
+<div style="z-index: 998; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); display: none; flex-direction: column; align-items: center; justify-content: center">
+<div style="background: #fff;padding: 30px; margin: 30px; border-radius: 16px;">
+  <div style="width: 200px; height: 200px; background: rgba(255, 255, 255, 0.8); position: absolute; top: -100px; right: -100px; border-radius: 100px"></div>
+  <div style="text-align: center; font-size: 18px; margin-bottom: 10px;">点击右上角即可分享</div>
+  <img src="./（转自360安全客）深入理解浏览器解析机制和XSS向量编码 - B1gstar - 博客园_files/35695-20230906145857937-1471873834.gif" alt="微信分享提示">
+</div>   
+    </div><button class="charm-bar-item charm-bar-handle hidden" type="button" title="显示工具栏"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="logo">
+  <style>
+    .main {
+      fill: #FFF;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .main {
+        fill: #59E8EB;
+      }
+    }
+  </style>
+  <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+    <g transform="translate(-240.000000, -192.000000)">
+      <g id="VIP_3_line" transform="translate(240.000000, 192.000000)">
+        <path d="M24,0 L24,24 L0,24 L0,0 L24,0 Z M12.5934901,23.257841 L12.5819402,23.2595131 L12.5108777,23.2950439 L12.4918791,23.2987469 L12.4918791,23.2987469 L12.4767152,23.2950439 L12.4056548,23.2595131 C12.3958229,23.2563662 12.3870493,23.2590235 12.3821421,23.2649074 L12.3780323,23.275831 L12.360941,23.7031097 L12.3658947,23.7234994 L12.3769048,23.7357139 L12.4804777,23.8096931 L12.4953491,23.8136134 L12.4953491,23.8136134 L12.5071152,23.8096931 L12.6106902,23.7357139 L12.6232938,23.7196733 L12.6232938,23.7196733 L12.6266527,23.7031097 L12.609561,23.275831 C12.6075724,23.2657013 12.6010112,23.2592993 12.5934901,23.257841 L12.5934901,23.257841 Z M12.8583906,23.1452862 L12.8445485,23.1473072 L12.6598443,23.2396597 L12.6498822,23.2499052 L12.6498822,23.2499052 L12.6471943,23.2611114 L12.6650943,23.6906389 L12.6699349,23.7034178 L12.6699349,23.7034178 L12.678386,23.7104931 L12.8793402,23.8032389 C12.8914285,23.8068999 12.9022333,23.8029875 12.9078286,23.7952264 L12.9118235,23.7811639 L12.8776777,23.1665331 C12.8752882,23.1545897 12.8674102,23.1470016 12.8583906,23.1452862 L12.8583906,23.1452862 Z M12.1430473,23.1473072 C12.1332178,23.1423925 12.1221763,23.1452606 12.1156365,23.1525954 L12.1099173,23.1665331 L12.0757714,23.7811639 C12.0751323,23.7926639 12.0828099,23.8018602 12.0926481,23.8045676 L12.108256,23.8032389 L12.3092106,23.7104931 L12.3186497,23.7024347 L12.3186497,23.7024347 L12.3225043,23.6906389 L12.340401,23.2611114 L12.337245,23.2485176 L12.337245,23.2485176 L12.3277531,23.2396597 L12.1430473,23.1473072 Z" id="MingCute" fill-rule="nonzero"></path>
+        <path class="main" d="M2.33789,4.86283 C1.86918,4.02957 2.47132,3 3.42736,3 L9.70837,3 C10.2488,3 10.7475,3.29076 11.0138,3.7611 L12.9999,7.26995 L14.986,3.7611 C15.2523,3.29076 15.7509,3 16.2914,3 L20.5724,3 C21.5285,3 22.1306,4.02957 21.6619,4.86282 L13.0894,20.1029 C12.6115,20.9525 11.3883,20.9525 10.9104,20.1029 L2.33789,4.86283 Z M4.70974,5 L11.9999,17.9603 L19.29,5 L16.5829,5 L12.9999,11.3301 L9.41685,5 L4.70974,5 Z"></path>
+      </g>
+    </g>
+  </g>
+</svg> </button><div class="charm-bar-wrapper"><div class="charm-bar-main"><div class="charm-bar-panel inactive hidden"></div><div class="charm-bar"><a class="charm-bar-item charm-bar-item-link" target="_blank" title="" href="https://www.cnblogs.com/cmt/p/20244560"><span style="font-size: 22px; font-weight: 500; margin-left: 5px; letter-spacing: 2px;">1Panel AI 编程一体机</span></a><button class="charm-bar-item" type="button" title="隐藏工具栏"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-6">
+  <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"></path>
+</svg>
+</button></div></div></div></body></html>
